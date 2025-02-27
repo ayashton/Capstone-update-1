@@ -1,0 +1,66 @@
+:root {
+  --bg-color: #000000;         /* Black */
+  --accent-color: #333333;     /* Charcoal */
+  --text-color: #D2B48C;       /* Desert Tan */
+  --transition-speed: 0.3s;
+  --font-stack: 'Helvetica Neue', Arial, sans-serif;
+  --base-font-size: 18px;      /* Increase base font size */
+}
+
+/* Global & Typography */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: var(--base-font-size); /* Sets base size for rem units */
+}
+
+body {
+  font-family: var(--font-stack);
+  color: var(--text-color);
+  background-color: var(--bg-color);
+}
+
+/***************************************************************************
+                              NAVBAR
+***************************************************************************/
+
+/* Navbar base */
+.navbar {
+  background-color: var(--accent-color) !important;
+  border-bottom: 1px solid var(--accent-color);
+}
+
+/* Brand Logo (left-aligned) */
+.navbar-brand {
+  color: var(--text-color) !important;
+}
+.navbar-brand img {
+  width: 40px;
+  height: 40px;
+}
+
+/* Nav links */
+.navbar-default .navbar-nav > li > a {
+  color: var(--text-color) !important;
+  padding: 10px 15px;
+}
+.navbar-default .navbar-nav > li > a:hover {
+  background-color: var(--accent-color) !important;
+  color: var(--bg-color) !important;
+}
+
+/* Hamburger Toggler */
+.navbar-toggle {
+  border: none;
+  background-color: transparent;
+}
+
+/***************************************************************************
+                             OTHER STYLES
+***************************************************************************/
+
+/* Feel free to include your other styles here. */

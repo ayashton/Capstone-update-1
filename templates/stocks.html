@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Stocks{% endblock %}
+
+{% block content %}
+<section style="padding: 100px 0; background-color: var(--bg-color);">
+  <div class="container">
+    <h1 style="color: var(--text-color); text-align: center; margin-bottom: 40px;">Stocks</h1>
+    <p style="color: var(--text-color); text-align: center; font-size: 1.2rem;">
+      Available stocks that can be traded are displayed below.
+    </p>
+    <div class="table-responsive">
+      <table class="table table-bordered" style="color: var(--text-color);">
+        <thead>
+          <tr>
+            <th>Symbol</th>
+            <th>Name</th>
+            <th>Price</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for stock in stocks %}
+          <tr>
+            <td>{{ stock.symbol }}</td>
+            <td>{{ stock.name }}</td>
+            <td>${{ stock.price }}</td>
+            <td>
+              <button type="button" class="btn btn-success buy-btn"
+                      data-stock-id="{{ stock.id }}"
+                      data-stock-name="{{ stock.name }}"
+                      data-bs-toggle="modal" data-bs-target="#buyStockModal">
+                Buy
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- Buy Stock Modal -->
+<div class="modal fade" id="buyStockModal" tabindex="-1" role="dialog" aria-labelledby="buyStockModalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content" style="background-color: var(--bg-color); color: var(--text-color);">
+      <div class="modal-header">
+        <h5 class="modal-title" id="buyStockModalLabel">Buy Stock</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" style="color: var(--text-color);"></button>
+      </div>
+      <div class="modal-body">
+        <form id="buyStockForm" method="post" action="">
+          <div class="mb-3">
+            <label for="shares" class="form-label">Number of Shares</label>
+            <input type="number" class="form-control" id="shares" name="shares" required>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary">Buy Stock</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Ensure jQuery is loaded; if you're using Bootstrap 5 without jQuery, use vanilla JS
+  // Here we use jQuery for simplicity.
+  $('#buyStockModal').on('show.bs.modal', function (event) {
+    var button = $(event.relatedTarget); // Button that triggered the modal
+    var stockId = button.data('stock-id');
+    var stockName = button.data('stock-name');
+    var modal = $(this);
+    modal.find('.modal-title').text('Buy ' + stockName);
+    modal.find('#buyStockForm').attr('action', '/buy-stock/' + stockId);
+  });
+</script>
+{% endblock %}

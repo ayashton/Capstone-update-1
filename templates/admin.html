@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Admin{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <h1>Admin Panel</h1>
+        <p>Create stocks or manage users here.</p>
+        
+        <h2>Manage Users</h2>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Username</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>{{ user.id }}</td>
+                    <td>{{ user.username }}</td>
+                    <td>{{ user.email }}</td>
+                    <td>{{ user.role }}</td>
+                    <td>
+                        <form method="post" action="{{ url_for('delete_user', user_id=user.id) }}" style="display:inline;">
+                            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                        </form>
+                        <form method="post" action="{{ url_for('change_role', user_id=user.id) }}" style="display:inline;">
+                            <select name="role" onchange="this.form.submit()">
+                                <option value="user" {% if user.role == 'user' %}selected{% endif %}>User</option>
+                                <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin</option>
+                            </select>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <h2>Create New Stock</h2>
+        <form method="post" action="{{ url_for('create_stock') }}">
+            <div class="mb-3">
+                <label for="stock_name" class="form-label">Stock Name</label>
+                <input type="text" class="form-control" id="stock_name" name="stock_name" required>
+            </div>
+            <div class="mb-3">
+                <label for="initial_price" class="form-label">Initial Price</label>
+                <input type="number" class="form-control" id="initial_price" name="initial_price" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Create Stock</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
