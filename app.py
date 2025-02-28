@@ -4,6 +4,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 import random
+from itsdangerous import URLSafeTimedSerializer
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your_secret_key'
@@ -14,7 +15,12 @@ db = SQLAlchemy(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 
-# User model with role-based access control
+# Unauthorized handler: if not logged in, redirect to custom unauthorized page
+@login_manager.unauthorized_handler
+def unauthorized_callback():
+    return redirect(url_for('unauthorized'))
+
+# -------------------- Models --------------------
 class Users(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     fullname = db.Column(db.String(100), nullable=False)
@@ -23,13 +29,11 @@ class Users(UserMixin, db.Model):
     password = db.Column(db.String(200), nullable=False)
     role = db.Column(db.String(50), default="user", nullable=False)  # "user" or "admin"
 
-# Stock model
 class Stock(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     initial_price = db.Column(db.Float, nullable=False)
 
-# Transaction model for buying/selling stocks
 class Transaction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, nullable=False)
@@ -46,6 +50,20 @@ with app.app_context():
 def load_user(user_id):
     return Users.query.get(int(user_id))
 
+# -------------------- Password Reset Functions --------------------
+def generate_reset_token(email, salt='password-reset-salt'):
+    serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+    return serializer.dumps(email, salt=salt)
+
+def verify_reset_token(token, expiration=3600, salt='password-reset-salt'):
+    serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+    try:
+        email = serializer.loads(token, salt=salt, max_age=expiration)
+    except Exception:
+        return None
+    return email
+
+# -------------------- Routes --------------------
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -54,12 +72,9 @@ def register():
         email = request.form.get('email')
         password = request.form.get('password')
 
-        # Check for duplicate username
         if Users.query.filter_by(username=username).first():
             flash('Username already exists. Please choose a different one.', 'danger')
             return redirect(url_for('register'))
-
-        # Check for duplicate email
         if Users.query.filter_by(email=email).first():
             flash('Email already registered. Please use a different email.', 'danger')
             return redirect(url_for('register'))
@@ -106,26 +121,66 @@ def contact():
     if request.method == 'POST':
         name = request.form['name']
         email = request.form['email']
-        # Handle form submission (e.g., save to database, send email, etc.)
         flash(f'Thank you {name}, we have received your message!', 'success')
         return redirect(url_for('home'))
     return render_template('contact.html', title='Contact')
+
+# -------------------- Password Reset Routes --------------------
+@app.route('/reset_password', methods=['GET', 'POST'])
+def reset_request():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        user = Users.query.filter_by(email=email).first()
+        if user:
+            token = generate_reset_token(email)
+            flash('A password reset link has been sent to your email. (For demo, you are being redirected.)', 'info')
+            return redirect(url_for('reset_token', token=token))
+        else:
+            flash('No account found with that email.', 'danger')
+            return redirect(url_for('login'))
+    return render_template('reset_request.html')
+
+@app.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_token(token):
+    email = verify_reset_token(token)
+    if not email:
+        flash('The reset link is invalid or has expired.', 'danger')
+        return redirect(url_for('reset_request'))
+    if request.method == 'POST':
+        password = request.form.get('password')
+        confirm = request.form.get('confirm_password')
+        if password != confirm:
+            flash("Passwords do not match.", "danger")
+            return redirect(url_for('reset_token', token=token))
+        user = Users.query.filter_by(email=email).first()
+        if user:
+            user.password = generate_password_hash(password, method='pbkdf2:sha256')
+            db.session.commit()
+            flash('Your password has been updated. Please log in.', 'success')
+            return redirect(url_for('login'))
+    return render_template('reset_token.html', token=token)
+# -------------------- End Password Reset Routes --------------------
 
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not current_user.is_authenticated or current_user.role != "admin":
             flash("You do not have permission to access this page.", "danger")
-            return redirect(url_for("home"))
+            return redirect(url_for("unauthorized"))
         return f(*args, **kwargs)
     return decorated_function
 
-@app.route('/admin-dashboard')
+@app.route('/unauthorized')
+def unauthorized():
+    return render_template('unauthorized.html'), 403
+
+# -------------------- Other Routes --------------------
+@app.route('/admin')
 @login_required
 @admin_required
-def admin_dashboard():
-    users = Users.query.all()  # Get all users for admin to manage
-    return render_template("admin_dashboard.html", users=users)
+def admin():
+    users = Users.query.all()
+    return render_template("admin.html", users=users)
 
 @app.route('/delete-user/<int:user_id>', methods=["POST"])
 @login_required
@@ -134,7 +189,8 @@ def delete_user(user_id):
     user = Users.query.get_or_404(user_id)
     db.session.delete(user)
     db.session.commit()
-    return redirect(url_for('admin_dashboard'))
+    flash('User deleted successfully.', 'success')
+    return redirect(url_for('admin'))
 
 @app.route('/change-role/<int:user_id>', methods=["POST"])
 @login_required
@@ -142,36 +198,22 @@ def delete_user(user_id):
 def change_role(user_id):
     user = Users.query.get_or_404(user_id)
     new_role = request.form.get("role")
-    
-    # Validate the role
     if new_role in ["user", "admin"]:
         user.role = new_role
         db.session.commit()
-    
-    return redirect(url_for('admin_dashboard'))
+        flash('User role updated successfully.', 'success')
+    return redirect(url_for('admin'))
 
 @app.route('/portfolio')
 @login_required
 def portfolio():
-    # In production, compute portfolio_data from transactions.
-    # For now, if there are no transactions, nothing is passed.
     return render_template('portfolio.html', title='Portfolio')
 
 @app.route('/transactions')
 @login_required
 def transactions():
-    # Query transactions and join with stock info in your real implementation.
-    
     return render_template('transactions.html', title='Transactions')
 
-@app.route('/admin')
-@login_required
-@admin_required
-def admin():
-    users = Users.query.all()  # Get all users for admin to manage
-    return render_template("admin.html", users=users)
-
-# Updated /stocks route with random price generation and stock id included
 @app.route('/stocks')
 @login_required
 def stocks():
@@ -190,7 +232,6 @@ def stocks():
          ]
     return render_template('stocks.html', title='Stocks', stocks=stocks_list)
 
-# New route to handle buying stocks
 @app.route('/buy-stock/<int:stock_id>', methods=["GET", "POST"])
 @login_required
 def buy_stock(stock_id):
@@ -204,7 +245,6 @@ def buy_stock(stock_id):
         if shares <= 0:
             flash("Number of shares must be positive.", "danger")
             return redirect(url_for('buy_stock', stock_id=stock_id))
-        # Generate a price similar to the stocks page
         price = round(random.uniform(stock.initial_price * 0.9, stock.initial_price * 1.1), 2)
         new_transaction = Transaction(user_id=current_user.id, stock_id=stock.id, shares=shares, price=price, transaction_type="buy")
         db.session.add(new_transaction)

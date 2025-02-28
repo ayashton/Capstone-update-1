@@ -3,52 +3,53 @@
 {% block title %}Login{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-md-12">
-        <h1>Login</h1>
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }}">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-        <form method="post" action="/login">
-            <div class="mb-3">
-                <label for="username" class="form-label">Username</label>
-                <input type="text" class="form-control" id="username" name="username" required>
+<div class="container">
+  <div class="row" style="margin-top: 50px;">
+    <div class="col-md-4 col-md-offset-4">
+      <div class="panel panel-default" style="background-color: var(--bg-color); border-color: var(--accent-color);">
+        <div class="panel-heading" style="background-color: var(--accent-color); border-color: var(--accent-color);">
+          <h3 class="panel-title text-center" style="color: var(--text-color);">Login</h3>
+        </div>
+        <div class="panel-body" style="background-color: var(--bg-color); color: var(--text-color);">
+          <form method="post" action="{{ url_for('login') }}">
+            <div class="form-group">
+              <label for="username" style="color: var(--text-color);">Username</label>
+              <input type="text" class="form-control" id="username" name="username" required style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
             </div>
-            <div class="mb-3">
-                <label for="password" class="form-label">Password</label>
-                <div class="input-group">
-                    <input type="password" class="form-control" id="password" name="password" required>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="togglePasswordVisibility('password')">
-                        <i class="bi bi-eye"></i>
-                    </button>
-                </div>
+            <div class="form-group">
+              <label for="password" style="color: var(--text-color);">Password</label>
+              <div class="input-group">
+                <input type="password" class="form-control" id="password" name="password" required style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
+                <span class="input-group-btn">
+                  <button type="button" class="btn btn-default" onclick="togglePasswordVisibility('password')" style="background-color: var(--accent-color); border: none;">
+                    <i class="glyphicon glyphicon-eye-open" style="color: var(--text-color);"></i>
+                  </button>
+                </span>
+              </div>
             </div>
-            <button type="submit" class="btn btn-primary">Login</button>
-        </form>
+            <button type="submit" class="btn btn-custom-primary btn-block">Login</button>
+          </form>
+          <br>
+          <p class="text-center" style="color: var(--text-color);">
+            <a href="{{ url_for('reset_request') }}" style="color: var(--text-color);">Forgot your password?</a>
+          </p>
+          <p class="text-center" style="color: var(--text-color);">
+            Don't have an account? <a href="{{ url_for('register') }}" style="color: var(--text-color);">Register here</a>
+          </p>
+        </div>
+      </div>
     </div>
+  </div>
 </div>
 
 <script>
 function togglePasswordVisibility(id) {
-    var passwordField = document.getElementById(id);
-    var button = passwordField.nextElementSibling;
-    var icon = button.querySelector('i');
-    if (passwordField.type === "password") {
-        passwordField.type = "text";
-        icon.classList.remove('bi-eye');
-        icon.classList.add('bi-eye-slash');
-    } else {
-        passwordField.type = "password";
-        icon.classList.remove('bi-eye-slash');
-        icon.classList.add('bi-eye');
-    }
+  var passwordField = document.getElementById(id);
+  if (passwordField.type === "password") {
+    passwordField.type = "text";
+  } else {
+    passwordField.type = "password";
+  }
 }
 </script>
-
-<!-- Bootstrap Icons CSS -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.8.1/font/bootstrap-icons.min.css">
 {% endblock %}
