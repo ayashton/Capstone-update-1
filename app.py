@@ -15,29 +15,32 @@ db = SQLAlchemy(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 
-# Unauthorized handler: if not logged in, redirect to custom unauthorized page
+# Unauthorized handler: if not logged in, redirect to a custom unauthorized page
 @login_manager.unauthorized_handler
 def unauthorized_callback():
     return redirect(url_for('unauthorized'))
 
 # -------------------- Models --------------------
 class Users(UserMixin, db.Model):
+    __tablename__ = 'user'
     id = db.Column(db.Integer, primary_key=True)
     fullname = db.Column(db.String(100), nullable=False)
     username = db.Column(db.String(100), unique=True, nullable=False)
     email = db.Column(db.String(100), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
-    role = db.Column(db.String(50), default="user", nullable=False)  # "user" or "admin"
+    role = db.Column(db.String(50), default="user", nullable=False)
 
 class Stock(db.Model):
+    __tablename__ = 'stocks'
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     initial_price = db.Column(db.Float, nullable=False)
 
 class Transaction(db.Model):
+    __tablename__ = 'transactions'
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, nullable=False)
-    stock_id = db.Column(db.Integer, db.ForeignKey('stock.id'), nullable=False)
+    stock_id = db.Column(db.Integer, db.ForeignKey('stocks.id'), nullable=False)
     shares = db.Column(db.Integer, nullable=False)
     price = db.Column(db.Float, nullable=False)
     transaction_type = db.Column(db.Enum('buy', 'sell'), nullable=False)
@@ -71,14 +74,12 @@ def register():
         username = request.form.get('username')
         email = request.form.get('email')
         password = request.form.get('password')
-
         if Users.query.filter_by(username=username).first():
             flash('Username already exists. Please choose a different one.', 'danger')
             return redirect(url_for('register'))
         if Users.query.filter_by(email=email).first():
             flash('Email already registered. Please use a different email.', 'danger')
             return redirect(url_for('register'))
-
         hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
         new_user = Users(fullname=fullname, username=username, email=email, password=hashed_password, role="user")
         db.session.add(new_user)
@@ -207,12 +208,73 @@ def change_role(user_id):
 @app.route('/portfolio')
 @login_required
 def portfolio():
-    return render_template('portfolio.html', title='Portfolio')
+    user_transactions = Transaction.query.filter_by(user_id=current_user.id).all()
+    holdings = {}
+    for tx in user_transactions:
+        sid = tx.stock_id
+        if sid not in holdings:
+            holdings[sid] = {"shares": 0, "total_cost": 0.0}
+        if tx.transaction_type == 'buy':
+            holdings[sid]["shares"] += tx.shares
+            holdings[sid]["total_cost"] += tx.shares * tx.price
+        elif tx.transaction_type == 'sell':
+            holdings[sid]["shares"] -= tx.shares
+            holdings[sid]["total_cost"] -= tx.shares * tx.price
+    portfolio_holdings = []
+    total_value = 0.0
+    for sid, data in holdings.items():
+        if data["shares"] > 0:
+            stock = Stock.query.get(sid)
+            avg_price = data["total_cost"] / data["shares"] if data["shares"] else 0
+            value = data["shares"] * avg_price
+            total_value += value
+            portfolio_holdings.append({
+                "symbol": stock.name.upper()[:4],
+                "shares": data["shares"],
+                "avg_price": round(avg_price, 2),
+                "total_value": round(value, 2)
+            })
+    portfolio_data = {
+        "total_value": round(total_value, 2),
+        "cash": 0.00,
+        "num_stocks": len(portfolio_holdings),
+        "holdings": portfolio_holdings
+    }
+    return render_template('portfolio.html', title='Portfolio', portfolio_data=portfolio_data)
 
 @app.route('/transactions')
 @login_required
 def transactions():
-    return render_template('transactions.html', title='Transactions')
+    txs = Transaction.query.filter_by(user_id=current_user.id).order_by(Transaction.transaction_date.desc()).all()
+    transactions_list = []
+    for tx in txs:
+        stock = Stock.query.get(tx.stock_id)
+        transactions_list.append({
+            "symbol": stock.name.upper()[:4],
+            "transaction_type": tx.transaction_type,
+            "shares": tx.shares,
+            "price": tx.price,
+            "transaction_date": tx.transaction_date
+        })
+    # Recalculate total account value from holdings.
+    user_transactions = Transaction.query.filter_by(user_id=current_user.id).all()
+    holdings = {}
+    for tx in user_transactions:
+        sid = tx.stock_id
+        if sid not in holdings:
+            holdings[sid] = {"shares": 0, "total_cost": 0.0}
+        if tx.transaction_type == 'buy':
+            holdings[sid]["shares"] += tx.shares
+            holdings[sid]["total_cost"] += tx.shares * tx.price
+        elif tx.transaction_type == 'sell':
+            holdings[sid]["shares"] -= tx.shares
+            holdings[sid]["total_cost"] -= tx.shares * tx.price
+    total_value = 0.0
+    for sid, data in holdings.items():
+        if data["shares"] > 0:
+            avg_price = data["total_cost"] / data["shares"]
+            total_value += data["shares"] * avg_price
+    return render_template('transactions.html', title='Transactions', transactions=transactions_list, total_value=round(total_value, 2))
 
 @app.route('/stocks')
 @login_required
@@ -252,6 +314,33 @@ def buy_stock(stock_id):
         flash(f'Bought {shares} shares of {stock.name} at ${price} per share!', 'success')
         return redirect(url_for("transactions"))
     return render_template("buy_stock.html", stock=stock)
+
+@app.route('/sell-stock/<int:stock_id>', methods=["GET", "POST"])
+@login_required
+def sell_stock(stock_id):
+    stock = Stock.query.get_or_404(stock_id)
+    buys = db.session.query(db.func.sum(Transaction.shares)).filter_by(user_id=current_user.id, stock_id=stock.id, transaction_type="buy").scalar() or 0
+    sells = db.session.query(db.func.sum(Transaction.shares)).filter_by(user_id=current_user.id, stock_id=stock.id, transaction_type="sell").scalar() or 0
+    holding = buys - sells
+    if request.method == "POST":
+        try:
+            shares = int(request.form.get("shares"))
+        except (ValueError, TypeError):
+            flash("Please enter a valid number of shares.", "danger")
+            return redirect(url_for('sell_stock', stock_id=stock_id))
+        if shares <= 0:
+            flash("Number of shares must be positive.", "danger")
+            return redirect(url_for('sell_stock', stock_id=stock_id))
+        if shares > holding:
+            flash(f"You do not have enough shares to sell. You currently hold {holding} shares.", "danger")
+            return redirect(url_for('sell_stock', stock_id=stock_id))
+        price = round(random.uniform(stock.initial_price * 0.9, stock.initial_price * 1.1), 2)
+        new_transaction = Transaction(user_id=current_user.id, stock_id=stock.id, shares=shares, price=price, transaction_type="sell")
+        db.session.add(new_transaction)
+        db.session.commit()
+        flash(f'Sold {shares} shares of {stock.name} at ${price} per share!', 'success')
+        return redirect(url_for("transactions"))
+    return render_template("sell_stock.html", stock=stock, holding=holding)
 
 @app.route('/create-stock', methods=["POST"])
 @login_required

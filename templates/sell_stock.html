@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Sell {{ stock.name }}{% endblock %}
+{% block content %}
+<div class="container" style="padding: 100px 0; color: var(--text-color);">
+  <div class="row">
+    <div class="col-md-6 col-md-offset-3">
+      <div class="panel panel-default" style="background-color: var(--bg-color); border-color: var(--accent-color);">
+        <div class="panel-heading" style="background-color: var(--accent-color); border-color: var(--accent-color);">
+          <h3 class="panel-title text-center" style="color: var(--text-color);">Sell {{ stock.name }}</h3>
+        </div>
+        <div class="panel-body" style="background-color: var(--bg-color); color: var(--text-color);">
+          <p>You currently hold {{ holding }} shares of {{ stock.name }}.</p>
+          <form method="post" action="{{ url_for('sell_stock', stock_id=stock.id) }}">
+            <div class="form-group">
+              <label for="shares" style="color: var(--text-color);">Number of Shares to Sell</label>
+              <input type="number" class="form-control" id="shares" name="shares" required
+                     style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
+            </div>
+            <button type="submit" class="btn btn-custom-primary btn-block">Sell Stock</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

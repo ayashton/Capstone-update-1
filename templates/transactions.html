@@ -1,15 +1,13 @@
 {% extends "base.html" %}
-
 {% block title %}Transactions{% endblock %}
-
 {% block content %}
 <section style="padding: 100px 0; background-color: var(--bg-color);">
   <div class="container">
-    <h1 style="color: var(--text-color); text-align: center; margin-bottom: 40px;">Transactions</h1>
+    <h1 class="text-center" style="color: var(--text-color); margin-bottom: 40px;">Transactions</h1>
     {% if transactions %}
       <div class="table-responsive">
-        <table class="table table-bordered" style="color: var(--text-color);">
-          <thead>
+        <table class="table table-bordered" style="color: var(--text-color); background-color: var(--bg-color) !important;">
+          <thead style="background-color: var(--bg-color) !important; color: var(--text-color) !important;">
             <tr>
               <th>Stock</th>
               <th>Type</th>
@@ -18,7 +16,7 @@
               <th>Date</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody style="background-color: var(--bg-color) !important; color: var(--text-color) !important;">
             {% for tx in transactions %}
               <tr>
                 <td>{{ tx.symbol }}</td>
@@ -31,8 +29,11 @@
           </tbody>
         </table>
       </div>
+      <div class="text-center" style="margin-top: 20px; color: var(--text-color);">
+        <h3>Total Account Value: ${{ total_value }}</h3>
+      </div>
     {% else %}
-      <p style="color: var(--text-color); text-align: center; font-size: 1.2rem;">
+      <p class="text-center" style="color: var(--text-color); font-size: 1.2rem;">
         No transactions have been recorded yet.
       </p>
     {% endif %}

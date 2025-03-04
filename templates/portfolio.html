@@ -1,7 +1,5 @@
 {% extends "base.html" %}
-
 {% block title %}Portfolio{% endblock %}
-
 {% block content %}
 <!-- Portfolio Hero Section -->
 <section class="portfolio-hero" style="padding: 100px 0; background-color: var(--bg-color);">
@@ -37,8 +35,8 @@
     <div class="container">
       <h2 style="color: var(--text-color); font-size: 3rem; text-align: center; margin-bottom: 40px;">Portfolio Details</h2>
       <div class="table-responsive">
-        <table class="table table-bordered" style="color: var(--text-color);">
-          <thead>
+        <table class="table table-bordered" style="color: var(--text-color); background-color: var(--bg-color) !important;">
+          <thead style="background-color: var(--bg-color) !important; color: var(--text-color) !important;">
             <tr>
               <th>Stock</th>
               <th>Shares</th>
@@ -46,7 +44,7 @@
               <th>Total Value</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody style="background-color: var(--bg-color) !important; color: var(--text-color) !important;">
             {% for holding in portfolio_data.holdings %}
               <tr>
                 <td>{{ holding.symbol }}</td>
