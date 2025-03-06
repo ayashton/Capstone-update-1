@@ -1,72 +1,88 @@
 {% extends "base.html" %}
 {% block title %}Portfolio{% endblock %}
 {% block content %}
-<!-- Portfolio Hero Section -->
-<section class="portfolio-hero" style="padding: 100px 0; background-color: var(--bg-color);">
-  <div class="container text-center">
-    <h1 style="color: var(--text-color); font-size: 3rem; margin-bottom: 20px;">My Portfolio</h1>
-    <p style="color: var(--text-color); font-size: 1.2rem;">A snapshot of your portfolio performance</p>
-  </div>
-</section>
+<div class="container" style="padding: 100px 0;">
+  <h1 class="text-center" style="color: var(--text-color); font-size: 3rem;">My Portfolio</h1>
+  <p class="text-center" style="color: var(--text-color); font-size: 1.4rem;">A snapshot of your portfolio performance</p>
 
-{% if portfolio_data %}
-  <!-- Portfolio Overview Section -->
-  <section class="portfolio-overview" style="padding: 50px 0; background-color: var(--accent-color);">
-    <div class="container">
-      <div class="row">
-        <div class="col-md-4 text-center" style="color: var(--text-color);">
-          <h2 style="font-size: 2.5rem;">Total Value</h2>
-          <p style="font-size: 1.2rem;">${{ portfolio_data.total_value }}</p>
-        </div>
-        <div class="col-md-4 text-center" style="color: var(--text-color);">
-          <h2 style="font-size: 2.5rem;">Cash</h2>
-          <p style="font-size: 1.2rem;">${{ portfolio_data.cash }}</p>
-        </div>
-        <div class="col-md-4 text-center" style="color: var(--text-color);">
-          <h2 style="font-size: 2.5rem;">Stocks</h2>
-          <p style="font-size: 1.2rem;">{{ portfolio_data.num_stocks }} Stocks</p>
+  {% if portfolio_data %}
+    <section class="portfolio-overview" style="padding: 50px 0; background-color: var(--accent-color);">
+      <div class="container">
+        <div class="row text-center" style="font-size: 1.6rem;">
+          <div class="col-md-3" style="color: var(--text-color);">
+            <h2>Total Value</h2>
+            <p>{{ portfolio_data.total_value|currency }}</p>
+          </div>
+          <div class="col-md-3" style="color: var(--text-color);">
+            <h2>Balance</h2>
+            <p>{{ portfolio_data.cash|currency }}</p>
+          </div>
+          <div class="col-md-3" style="color: var(--text-color);">
+            <h2>Stocks Owned</h2>
+            <p>{{ portfolio_data.num_stocks }}</p>
+          </div>
+          <div class="col-md-3">
+            <h2>Profit/Loss</h2>
+            <p class="{% if portfolio_data.profit_loss >= 0 %}profit{% else %}loss{% endif %}">
+              {{ portfolio_data.profit_loss|currency }}
+            </p>
+          </div>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- Portfolio Details Section -->
-  <section class="portfolio-details" style="padding: 100px 0; background-color: var(--bg-color);">
-    <div class="container">
-      <h2 style="color: var(--text-color); font-size: 3rem; text-align: center; margin-bottom: 40px;">Portfolio Details</h2>
-      <div class="table-responsive">
-        <table class="table table-bordered" style="color: var(--text-color); background-color: var(--bg-color) !important;">
-          <thead style="background-color: var(--bg-color) !important; color: var(--text-color) !important;">
-            <tr>
-              <th>Stock</th>
-              <th>Shares</th>
-              <th>Average Price</th>
-              <th>Total Value</th>
-            </tr>
-          </thead>
-          <tbody style="background-color: var(--bg-color) !important; color: var(--text-color) !important;">
-            {% for holding in portfolio_data.holdings %}
+    <section class="portfolio-details" style="padding: 100px 0; background-color: var(--bg-color);">
+      <div class="container">
+        <h2 class="text-center" style="color: var(--text-color); font-size: 2.5rem;">Portfolio Details</h2>
+        <div class="table-responsive">
+          <table class="table table-bordered" style="font-size: 1.4rem; color: var(--text-color);">
+            <thead>
+              <tr>
+                <th>Stock</th>
+                <th>Shares</th>
+                <th>Average Price</th>
+                <th>Total Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for holding in portfolio_data.holdings %}
               <tr>
                 <td>{{ holding.symbol }}</td>
                 <td>{{ holding.shares }}</td>
-                <td>${{ holding.avg_price }}</td>
-                <td>${{ holding.total_value }}</td>
+                <td>{{ holding.avg_price|currency }}</td>
+                <td>{{ holding.total_value|currency }}</td>
               </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
-  </section>
-{% else %}
-  <!-- Empty Portfolio Message -->
-  <section class="portfolio-empty" style="padding: 100px 0; background-color: var(--bg-color);">
-    <div class="container text-center">
-      <h2 style="color: var(--text-color); font-size: 3rem;">No Transactions Yet</h2>
-      <p style="color: var(--text-color); font-size: 1.2rem;">
-        Your portfolio details will appear here once you start making transactions.
-      </p>
-    </div>
-  </section>
-{% endif %}
+    </section>
+
+    <!-- ✅ Add Funds Section -->
+    <section class="add-funds-section" style="padding: 50px 0; background-color: var(--bg-color);">
+      <div class="container">
+        <h2 class="text-center" style="color: var(--text-color); font-size: 2.5rem;">Add Funds</h2>
+        <div class="row">
+          <div class="col-md-6 col-md-offset-3">
+            <form method="post" action="{{ url_for('add_funds') }}">
+              <div class="form-group">
+                <label for="amount" style="color: var(--text-color); font-size: 1.4rem;">Enter Amount</label>
+                <input type="number" step="0.01" class="form-control" id="amount" name="amount" required
+                       style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color); font-size: 1.2rem;">
+              </div>
+              <button type="submit" class="btn btn-custom-primary btn-block" style="font-size: 1.4rem;">Add Funds</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+    
+  {% else %}
+    <section class="portfolio-empty" style="padding: 100px 0; background-color: var(--bg-color); text-align: center;">
+      <h2 style="color: var(--text-color); font-size: 2.5rem;">No Transactions Yet</h2>
+      <p style="color: var(--text-color); font-size: 1.4rem;">Your portfolio details will appear once you start trading.</p>
+    </section>
+  {% endif %}
+</div>
 {% endblock %}

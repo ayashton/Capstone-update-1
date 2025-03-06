@@ -6,7 +6,8 @@
   --font-stack: 'Roboto', sans-serif;
 }
 
-/* Global & Typography */
+/* Global Typography */
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -56,4 +57,14 @@ a:hover {
   color: var(--accent-color);
 }
 
-/* Additional styles as needed... */
+/* Balance */
+.profit {
+  color: green;
+  font-size: 1.6rem;
+}
+
+.loss {
+  color: red;
+  font-size: 1.6rem;
+}
+
