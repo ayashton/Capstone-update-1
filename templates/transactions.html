@@ -1,42 +1,38 @@
 {% extends "base.html" %}
 {% block title %}Transactions{% endblock %}
 {% block content %}
-<section style="padding: 100px 0; background-color: var(--bg-color);">
-  <div class="container">
-    <h1 class="text-center" style="color: var(--text-color); margin-bottom: 40px;">Transactions</h1>
-    {% if transactions %}
-      <div class="table-responsive">
-        <table class="table table-bordered" style="color: var(--text-color); background-color: var(--bg-color) !important;">
-          <thead style="background-color: var(--bg-color) !important; color: var(--text-color) !important;">
-            <tr>
-              <th>Stock</th>
-              <th>Type</th>
-              <th>Shares</th>
-              <th>Price</th>
-              <th>Date</th>
-            </tr>
-          </thead>
-          <tbody style="background-color: var(--bg-color) !important; color: var(--text-color) !important;">
-            {% for tx in transactions %}
-              <tr>
-                <td>{{ tx.symbol }}</td>
-                <td>{{ tx.transaction_type }}</td>
-                <td>{{ tx.shares }}</td>
-                <td>${{ tx.price }}</td>
-                <td>{{ tx.transaction_date }}</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      <div class="text-center" style="margin-top: 20px; color: var(--text-color);">
-        <h3>Total Account Value: ${{ total_value }}</h3>
-      </div>
-    {% else %}
-      <p class="text-center" style="color: var(--text-color); font-size: 1.2rem;">
-        No transactions have been recorded yet.
-      </p>
-    {% endif %}
-  </div>
-</section>
+<div class="container" style="padding: 100px 0;">
+  <h1 class="text-center" style="color: var(--text-color); font-size: 3rem;">Transactions</h1>
+  {% if transactions %}
+    <div class="table-responsive">
+      <table class="table table-bordered" style="font-size: 1.4rem; color: var(--text-color);">
+        <thead>
+          <tr>
+            <th>Stock</th>
+            <th>Type</th>
+            <th>Shares</th>
+            <th>Price</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for tx in transactions %}
+          <tr>
+            <td>{{ tx.symbol }}</td>
+            <td>{{ tx.transaction_type }}</td>
+            <td>{{ tx.shares }}</td>
+            <td>{{ tx.price|currency }}</td>
+            <td>{{ tx.transaction_date }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="text-center" style="margin-top: 20px; font-size: 1.6rem; color: var(--text-color);">
+      <h3>Total Account Value: {{ total_value|currency }}</h3>
+    </div>
+  {% else %}
+    <p class="text-center" style="color: var(--text-color); font-size: 1.4rem;">No transactions recorded yet.</p>
+  {% endif %}
+</div>
 {% endblock %}

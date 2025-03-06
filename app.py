@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -29,6 +29,8 @@ class Users(UserMixin, db.Model):
     email = db.Column(db.String(100), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
     role = db.Column(db.String(50), default="user", nullable=False)
+    balance = db.Column(db.Float, default=0.0)  
+
 
 class Stock(db.Model):
     __tablename__ = 'stocks'
@@ -65,6 +67,14 @@ def verify_reset_token(token, expiration=3600, salt='password-reset-salt'):
     except Exception:
         return None
     return email
+
+@app.template_filter('currency')
+def currency_format(value):
+    """Formats a number as currency (e.g., $1,234.56)."""
+    try:
+        return "${:,.2f}".format(float(value))
+    except (ValueError, TypeError):
+        return value
 
 # -------------------- Routes --------------------
 @app.route('/register', methods=['GET', 'POST'])
@@ -209,7 +219,11 @@ def change_role(user_id):
 @login_required
 def portfolio():
     user_transactions = Transaction.query.filter_by(user_id=current_user.id).all()
+
     holdings = {}
+    total_spent = 0.0  # Track how much the user has spent buying stocks
+    total_value = 0.0  # Track current stock value
+
     for tx in user_transactions:
         sid = tx.stock_id
         if sid not in holdings:
@@ -217,30 +231,57 @@ def portfolio():
         if tx.transaction_type == 'buy':
             holdings[sid]["shares"] += tx.shares
             holdings[sid]["total_cost"] += tx.shares * tx.price
+            total_spent += tx.shares * tx.price  # Track total spent on purchases
         elif tx.transaction_type == 'sell':
             holdings[sid]["shares"] -= tx.shares
             holdings[sid]["total_cost"] -= tx.shares * tx.price
+
     portfolio_holdings = []
-    total_value = 0.0
     for sid, data in holdings.items():
         if data["shares"] > 0:
             stock = Stock.query.get(sid)
+            current_price = round(random.uniform(stock.initial_price * 0.9, stock.initial_price * 1.1), 2)
             avg_price = data["total_cost"] / data["shares"] if data["shares"] else 0
-            value = data["shares"] * avg_price
-            total_value += value
+            value = data["shares"] * current_price
+            total_value += value  # Track the updated stock value
+
             portfolio_holdings.append({
                 "symbol": stock.name.upper()[:4],
                 "shares": data["shares"],
                 "avg_price": round(avg_price, 2),
                 "total_value": round(value, 2)
             })
+
+    # Calculate profit/loss (current value - total spent)
+    profit_loss = total_value - total_spent
+
+    # Fetch latest balance
+    updated_balance = Users.query.get(current_user.id).balance
+
     portfolio_data = {
         "total_value": round(total_value, 2),
-        "cash": 0.00,
+        "cash": round(updated_balance, 2),
         "num_stocks": len(portfolio_holdings),
-        "holdings": portfolio_holdings
+        "holdings": portfolio_holdings,
+        "profit_loss": round(profit_loss, 2)  # Add profit/loss data
     }
+
     return render_template('portfolio.html', title='Portfolio', portfolio_data=portfolio_data)
+
+
+
+@app.route('/profile', methods=['GET', 'POST'])
+@login_required
+def profile():
+    if request.method == 'POST':
+        fullname = request.form.get('fullname')
+        email = request.form.get('email')
+        user = Users.query.get(current_user.id)
+        user.fullname = fullname
+        user.email = email
+        db.session.commit()
+        flash('Profile updated successfully.', 'success')
+    return render_template('profile.html', title='Profile', user=current_user)
 
 @app.route('/transactions')
 @login_required
@@ -276,71 +317,123 @@ def transactions():
             total_value += data["shares"] * avg_price
     return render_template('transactions.html', title='Transactions', transactions=transactions_list, total_value=round(total_value, 2))
 
+@app.route('/add-funds', methods=['POST'])
+@login_required
+def add_funds():
+    try:
+        amount = float(request.form.get('amount'))
+    except ValueError:
+        flash('Invalid amount entered.', 'danger')
+        return redirect(url_for('portfolio'))
+
+    if amount <= 0:
+        flash('Please enter a positive amount.', 'danger')
+        return redirect(url_for('portfolio'))
+
+    current_user.balance += amount  # Update the user's balance
+    db.session.commit()
+
+    flash(f"Successfully added ${amount:,.2f} to your account.", "success")
+    return redirect(url_for('portfolio'))
+
+
+from flask import jsonify, request
+
 @app.route('/stocks')
 @login_required
 def stocks():
     stocks_query = Stock.query.all()
     stocks_list = []
-    if stocks_query:
-        for stock in stocks_query:
-            price = round(random.uniform(stock.initial_price * 0.9, stock.initial_price * 1.1), 2)
-            symbol = stock.name.upper()[:4]
-            stocks_list.append({"id": stock.id, "symbol": symbol, "name": stock.name, "price": price})
-    else:
-         stocks_list = [
-             {"id": 1, "symbol": "AAPL", "name": "Apple Inc.", "price": round(random.uniform(140, 160), 2)},
-             {"id": 2, "symbol": "GOOGL", "name": "Alphabet Inc.", "price": round(random.uniform(2500, 2800), 2)},
-             {"id": 3, "symbol": "AMZN", "name": "Amazon.com Inc.", "price": round(random.uniform(3300, 3500), 2)},
-         ]
+
+    for stock in stocks_query:
+        price = round(random.uniform(stock.initial_price * 0.9, stock.initial_price * 1.1), 2)
+        stocks_list.append({
+            "id": stock.id,
+            "symbol": stock.name.upper()[:4],  # Assuming name is the stock symbol
+            "name": stock.name,
+            "price": price
+        })
+
+    # If it's an AJAX request, return JSON instead of an HTML page
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify(stocks_list)
+
     return render_template('stocks.html', title='Stocks', stocks=stocks_list)
 
-@app.route('/buy-stock/<int:stock_id>', methods=["GET", "POST"])
+
+@app.route('/buy-stock/<int:stock_id>', methods=['POST'])
 @login_required
 def buy_stock(stock_id):
     stock = Stock.query.get_or_404(stock_id)
-    if request.method == "POST":
-        try:
-            shares = int(request.form.get("shares"))
-        except (ValueError, TypeError):
-            flash("Please enter a valid number of shares.", "danger")
-            return redirect(url_for('buy_stock', stock_id=stock_id))
-        if shares <= 0:
-            flash("Number of shares must be positive.", "danger")
-            return redirect(url_for('buy_stock', stock_id=stock_id))
-        price = round(random.uniform(stock.initial_price * 0.9, stock.initial_price * 1.1), 2)
-        new_transaction = Transaction(user_id=current_user.id, stock_id=stock.id, shares=shares, price=price, transaction_type="buy")
-        db.session.add(new_transaction)
-        db.session.commit()
-        flash(f'Bought {shares} shares of {stock.name} at ${price} per share!', 'success')
-        return redirect(url_for("transactions"))
-    return render_template("buy_stock.html", stock=stock)
+    
+    try:
+        shares = int(request.form.get("shares"))
+    except (ValueError, TypeError):
+        flash("Invalid input. Please enter a valid number of shares.", "danger")
+        return redirect(url_for("stocks"))
 
-@app.route('/sell-stock/<int:stock_id>', methods=["GET", "POST"])
+    if shares <= 0:
+        flash("You must buy at least one share.", "danger")
+        return redirect(url_for("stocks"))
+
+    # Calculate total cost
+    price = round(random.uniform(stock.initial_price * 0.9, stock.initial_price * 1.1), 2)
+    total_cost = round(price * shares, 2)
+
+    user = Users.query.get(current_user.id)
+
+    if user.balance < total_cost:
+        flash(f"Insufficient funds! You need ${total_cost:.2f} but only have ${user.balance:.2f}.", "danger")
+        return redirect(url_for("stocks"))
+
+    user.balance -= total_cost
+
+ 
+    new_transaction = Transaction(
+        user_id=user.id,
+        stock_id=stock.id,
+        shares=shares,
+        price=price,
+        transaction_type="buy"
+    )
+
+    db.session.add(new_transaction)
+    db.session.commit()
+
+    flash(f"Bought {shares} shares of {stock.name} at ${price:.2f} per share!", "success")
+    return redirect(url_for("transactions"))
+
+@app.route('/sell-stock/<int:stock_id>', methods=['POST'])
 @login_required
 def sell_stock(stock_id):
     stock = Stock.query.get_or_404(stock_id)
-    buys = db.session.query(db.func.sum(Transaction.shares)).filter_by(user_id=current_user.id, stock_id=stock.id, transaction_type="buy").scalar() or 0
-    sells = db.session.query(db.func.sum(Transaction.shares)).filter_by(user_id=current_user.id, stock_id=stock.id, transaction_type="sell").scalar() or 0
-    holding = buys - sells
-    if request.method == "POST":
-        try:
-            shares = int(request.form.get("shares"))
-        except (ValueError, TypeError):
-            flash("Please enter a valid number of shares.", "danger")
-            return redirect(url_for('sell_stock', stock_id=stock_id))
-        if shares <= 0:
-            flash("Number of shares must be positive.", "danger")
-            return redirect(url_for('sell_stock', stock_id=stock_id))
-        if shares > holding:
-            flash(f"You do not have enough shares to sell. You currently hold {holding} shares.", "danger")
-            return redirect(url_for('sell_stock', stock_id=stock_id))
-        price = round(random.uniform(stock.initial_price * 0.9, stock.initial_price * 1.1), 2)
-        new_transaction = Transaction(user_id=current_user.id, stock_id=stock.id, shares=shares, price=price, transaction_type="sell")
-        db.session.add(new_transaction)
-        db.session.commit()
-        flash(f'Sold {shares} shares of {stock.name} at ${price} per share!', 'success')
-        return redirect(url_for("transactions"))
-    return render_template("sell_stock.html", stock=stock, holding=holding)
+
+    total_buys = db.session.query(db.func.sum(Transaction.shares)).filter_by(user_id=current_user.id, stock_id=stock.id, transaction_type='buy').scalar() or 0
+    total_sells = db.session.query(db.func.sum(Transaction.shares)).filter_by(user_id=current_user.id, stock_id=stock.id, transaction_type='sell').scalar() or 0
+    holdings = total_buys - total_sells
+
+    try:
+        shares = int(request.form.get('shares'))
+    except ValueError:
+        flash('Invalid input. Enter a valid number of shares.', 'danger')
+        return redirect(url_for('stocks'))
+
+    if shares <= 0:
+        flash('Number of shares must be positive.', 'danger')
+        return redirect(url_for('stocks'))
+
+    if shares > holdings:
+        flash(f'Insufficient shares. You own {holdings} shares.', 'danger')
+        return redirect(url_for('stocks'))
+
+    price = round(random.uniform(stock.initial_price * 0.9, stock.initial_price * 1.1), 2)
+    new_transaction = Transaction(user_id=current_user.id, stock_id=stock.id, shares=shares, price=price, transaction_type='sell')
+
+    db.session.add(new_transaction)
+    db.session.commit()
+    flash(f'Sold {shares} shares of {stock.name} at ${price} per share!', 'success')
+    return redirect(url_for('transactions'))
+
 
 @app.route('/create-stock', methods=["POST"])
 @login_required
