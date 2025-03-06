@@ -20,7 +20,7 @@ login_manager.init_app(app)
 def unauthorized_callback():
     return redirect(url_for('unauthorized'))
 
-# -------------------- Models -----------------------
+# -------------------- Models -----------------------____
 class Users(UserMixin, db.Model):
     __tablename__ = 'user'
     id = db.Column(db.Integer, primary_key=True)
