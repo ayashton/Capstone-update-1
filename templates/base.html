@@ -34,6 +34,9 @@
           <li><a href="{{ url_for('portfolio') }}" style="color: var(--text-color);">Portfolio</a></li>
           <li><a href="{{ url_for('transactions') }}" style="color: var(--text-color);">Transactions</a></li>
           <li><a href="{{ url_for('stocks') }}" style="color: var(--text-color);">Stocks</a></li>
+          {% if current_user.is_authenticated %}
+            <li><a href="{{ url_for('account') }}" style="color: var(--text-color);">Manage Account</a></li>
+          {% endif %}
           {% if current_user.is_authenticated and current_user.role == "admin" %}
             <li><a href="{{ url_for('admin') }}" style="color: var(--text-color);">Admin</a></li>
           {% endif %}

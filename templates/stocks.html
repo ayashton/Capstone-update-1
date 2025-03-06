@@ -19,21 +19,27 @@
         </thead>
         <tbody style="background-color: var(--bg-color) !important; color: var(--text-color) !important;">
           {% for stock in stocks %}
-          <tr>
+          <tr data-base-price="{{ stock.price }}">
             <td>{{ stock.symbol }}</td>
             <td>{{ stock.name }}</td>
-            <td>${{ stock.price }}</td>
+            <td class="price-cell">${{ stock.price }}</td>
             <td>
-              <button type="button" class="btn btn-success buy-btn" 
-                      data-stock-id="{{ stock.id }}" 
+              <!-- Buy Button -->
+              <button type="button"
+                      class="btn btn-success buy-btn"
+                      data-stock-id="{{ stock.id }}"
                       data-stock-name="{{ stock.name }}"
-                      data-bs-toggle="modal" data-bs-target="#buyStockModal">
+                      data-toggle="modal"
+                      data-target="#buyStockModal">
                 Buy
               </button>
-              <button type="button" class="btn btn-warning sell-btn" 
-                      data-stock-id="{{ stock.id }}" 
+              <!-- Sell Button -->
+              <button type="button"
+                      class="btn btn-warning sell-btn"
+                      data-stock-id="{{ stock.id }}"
                       data-stock-name="{{ stock.name }}"
-                      data-bs-toggle="modal" data-bs-target="#sellStockModal">
+                      data-toggle="modal"
+                      data-target="#sellStockModal">
                 Sell
               </button>
             </td>
@@ -50,10 +56,10 @@
   <div class="modal-dialog" role="document">
     <div class="modal-content" style="background-color: var(--bg-color); color: var(--text-color);">
       <div class="modal-header" style="background-color: var(--accent-color);">
-        <h5 class="modal-title" id="buyStockModalLabel">Buy Stock</h5>
-        <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close" style="color: var(--text-color);">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="color: var(--text-color);">
           <span aria-hidden="true">&times;</span>
         </button>
+        <h4 class="modal-title" id="buyStockModalLabel">Buy Stock</h4>
       </div>
       <div class="modal-body">
         <form id="buyStockForm" method="post" action="">
@@ -63,7 +69,7 @@
                    style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-custom-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-custom-secondary" data-dismiss="modal">Cancel</button>
             <button type="submit" class="btn btn-custom-primary">Buy Stock</button>
           </div>
         </form>
@@ -77,10 +83,10 @@
   <div class="modal-dialog" role="document">
     <div class="modal-content" style="background-color: var(--bg-color); color: var(--text-color);">
       <div class="modal-header" style="background-color: var(--accent-color);">
-        <h5 class="modal-title" id="sellStockModalLabel">Sell Stock</h5>
-        <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close" style="color: var(--text-color);">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="color: var(--text-color);">
           <span aria-hidden="true">&times;</span>
         </button>
+        <h4 class="modal-title" id="sellStockModalLabel">Sell Stock</h4>
       </div>
       <div class="modal-body">
         <form id="sellStockForm" method="post" action="">
@@ -90,7 +96,7 @@
                    style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-custom-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-custom-secondary" data-dismiss="modal">Cancel</button>
             <button type="submit" class="btn btn-custom-primary">Sell Stock</button>
           </div>
         </form>
@@ -101,24 +107,43 @@
 
 {% block scripts %}
 <script>
-  // For Buy Modal
+  // BUY MODAL
   $('#buyStockModal').on('show.bs.modal', function (event) {
     var button = $(event.relatedTarget);
     var stockId = button.data('stock-id');
     var stockName = button.data('stock-name');
     var modal = $(this);
     modal.find('.modal-title').text('Buy ' + stockName);
+    // Update the form action to /buy-stock/<id>
     modal.find('#buyStockForm').attr('action', '/buy-stock/' + stockId);
   });
 
-  // For Sell Modal
+  // SELL MODAL
   $('#sellStockModal').on('show.bs.modal', function (event) {
     var button = $(event.relatedTarget);
     var stockId = button.data('stock-id');
     var stockName = button.data('stock-name');
     var modal = $(this);
     modal.find('.modal-title').text('Sell ' + stockName);
+    // Update the form action to /sell-stock/<id>
     modal.find('#sellStockForm').attr('action', '/sell-stock/' + stockId);
+  });
+
+  // Function to update prices randomly every 5 seconds
+  function updatePrices() {
+    $('table tbody tr').each(function() {
+      var basePrice = parseFloat($(this).attr('data-base-price'));
+      if (!isNaN(basePrice)) {
+        // Generate a new price between 90% and 110% of the base price
+        var newPrice = (basePrice * (0.9 + Math.random() * 0.2)).toFixed(2);
+        $(this).find('td.price-cell').text("$" + newPrice);
+      }
+    });
+  }
+
+  $(document).ready(function(){
+    updatePrices(); // initial update on page load
+    setInterval(updatePrices, 5000); // update every 5 seconds
   });
 </script>
 {% endblock %}
