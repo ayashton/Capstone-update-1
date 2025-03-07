@@ -1,188 +1,232 @@
 {% extends "base.html" %}
 {% block title %}Stocks{% endblock %}
+
 {% block content %}
+<div class="container" style="max-width: 1200px; margin: auto; padding: 50px 20px;">
+  <h1 style="text-align: center; font-size: 2.8rem;">Stock Market</h1>
+  <p style="text-align: center; font-size: 1.4rem;">Browse and trade stocks with real-time data.</p>
 
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-
-<section style="padding: 100px 0; background-color: var(--bg-color);">
-  <div class="container">
-    <h1 class="text-center" style="color: var(--text-color); margin-bottom: 40px;">Stocks</h1>
-    <p class="text-center" style="color: var(--text-color); font-size: 1.2rem;">
-      Available stocks that can be traded are displayed below.
-    </p>
-
-    <!-- Stock Search Bar -->
-    <div class="text-center" style="margin-bottom: 20px;">
-      <input type="text" id="stockSearch" class="form-control" placeholder="Search stocks..." 
-             onkeyup="searchStocks()" style="width: 50%; margin: 0 auto; background-color: var(--bg-color); 
-             color: var(--text-color); border: 1px solid var(--accent-color);">
-    </div>
-
-    <div class="table-responsive">
-      <table class="table table-bordered" style="color: var(--text-color); background-color: var(--bg-color) !important;">
-        <thead style="background-color: var(--bg-color) !important; color: var(--text-color) !important;">
-          <tr>
-            <th>Symbol</th>
-            <th>Name</th>
-            <th>Price</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody id="stockTableBody" style="background-color: var(--bg-color) !important; color: var(--text-color) !important;">
-          {% for stock in stocks %}
-          <tr>
-            <td>{{ stock.symbol }}</td>
-            <td>{{ stock.name }}</td>
-            <td id="price-{{ stock.id }}">${{ stock.price }}</td>
-            <td>
-              <button type="button" class="btn btn-success buy-btn" 
-                      data-stock-id="{{ stock.id }}" 
-                      data-stock-name="{{ stock.name }}"
-                      data-toggle="modal" data-target="#buyStockModal">
-                Buy
-              </button>
-              <button type="button" class="btn btn-warning sell-btn" 
-                      data-stock-id="{{ stock.id }}" 
-                      data-stock-name="{{ stock.name }}"
-                      data-toggle="modal" data-target="#sellStockModal">
-                Sell
-              </button>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+  <div class="table-responsive" style="margin-top: 30px;">
+    <table class="table table-bordered" style="font-size: 1.2rem;">
+      <thead>
+        <tr>
+          <th>Symbol</th>
+          <th>Company Name</th>
+          <th>Current Price</th>
+          <th>Price Change</th>
+          <th>% Change</th>
+          <th>Sector</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for stock in stocks %}
+        <tr>
+          <td>{{ stock.symbol }}</td>
+          <td>{{ stock.name }}</td>
+          <td>${{ stock.price|float|round(2) if stock.price else "N/A" }}</td>
+          <td class="{% if stock.price_change|float >= 0 %}price-up{% else %}price-down{% endif %}">
+        {% if stock.price_change|float >= 0 %}+{% endif %}${{ stock.price_change|float|round(2) if stock.price_change else "0.00" }}
+          </td>
+          <td class="{% if stock.percent_change|float >= 0 %}price-up{% else %}price-down{% endif %}">
+        {% if stock.percent_change|float >= 0 %}+{% endif %}{{ stock.percent_change|float|round(2) if stock.percent_change else "0.00" }}%
+          </td>
+          <td>{{ stock.sector }}</td>
+          <td>
+            <button class="btn btn-success buy-btn" 
+                    data-stock-id="{{ stock.id }}" 
+                    data-stock-name="{{ stock.name }}" 
+                    data-stock-price="{{ stock.price }}"
+                    data-toggle="modal" data-target="#buyStockModal">
+              Buy
+            </button>
+            
+            <button class="btn btn-warning sell-btn" 
+                    data-stock-id="{{ stock.id }}" 
+                    data-stock-name="{{ stock.name }}" 
+                    data-stock-price="{{ stock.price }}"
+                    data-toggle="modal" data-target="#sellStockModal">
+              Sell
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
-</section>
+</div>
 
 <!-- Buy Stock Modal -->
 <div class="modal fade" id="buyStockModal" tabindex="-1" role="dialog">
   <div class="modal-dialog" role="document">
-    <div class="modal-content" style="background-color: var(--bg-color); color: var(--text-color);">
-      <div class="modal-header" style="background-color: var(--accent-color);">
-        <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" style="color: tan;">&times;</button>
         <h4 class="modal-title">Buy Stock</h4>
       </div>
-      
       <form method="post" id="buyStockForm">
         <div class="modal-body">
-          <input type="number" class="form-control" name="shares" min="1" required>
+          <label for="buy_shares" style="color: tan;">Number of Shares:</label>
+          <input type="number" class="form-control custom-input" id="buy_shares" name="shares" min="1" required>
+          <p id="buyTotalCost" style="margin-top: 10px; font-size: 1.2rem; color: tan;"></p>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-primary">Buy Stock</button>
+          <button type="button" class="btn btn-custom-secondary" data-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-custom-primary" id="buyConfirmBtn">Next</button>
         </div>
       </form>
+    </div>
+  </div>
+</div>
+
+<!-- Buy Confirmation Modal -->
+<div class="modal fade" id="buyConfirmModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h4 class="modal-title" id="buyConfirmTitle">Confirm Purchase</h4>
+      </div>
+      <div class="modal-body">
+        <p id="buyConfirmText" style="font-size: 1.5rem; text-align: center; color: tan;"></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-custom-secondary" data-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-success" id="buySubmitBtn">Confirm Buy</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Sell Stock Modal -->
+<div class="modal fade" id="sellStockModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" style="color: tan;">&times;</button>
+        <h4 class="modal-title">Sell Stock</h4>
+      </div>
+      <form method="post" id="sellStockForm">
+        <div class="modal-body">
+          <label for="sell_shares" style="color: tan;">Number of Shares:</label>
+          <input type="number" class="form-control custom-input" id="sell_shares" name="shares" min="1" required>
+          <p id="sellTotalCost" style="margin-top: 10px; font-size: 1.2rem; color: tan;"></p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-custom-secondary" data-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-custom-primary" id="sellConfirmBtn">Next</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Sell Confirmation Modal -->
+<div class="modal fade" id="sellConfirmModal" tabindex="-1" role="dialog">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h4 class="modal-title" id="sellConfirmTitle">Confirm Sale</h4>
+      </div>
+      <div class="modal-body">
+        <p id="sellConfirmText" style="font-size: 1.5rem; text-align: center; color: tan;"></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-custom-secondary" data-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-warning" id="sellSubmitBtn">Confirm Sell</button>
+      </div>
     </div>
   </div>
 </div>
 
 <script>
   document.addEventListener("DOMContentLoaded", function () {
-    $('#buyStockModal').on('show.bs.modal', function(event) {
-      var button = $(event.relatedTarget);
-      var stockId = button.data('stock-id'); 
-      var stockName = button.data('stock-name'); 
-      var modal = $(this);
+    let selectedStockPrice = 0;
+    let selectedStockName = "";
+    let selectedStockId = 0;
 
-      if (!stockId) {
-        console.error("Stock ID is missing!");
-        return;
-      }
-
-      modal.find('.modal-title').text('Buy ' + stockName);
-      modal.find('#buyStockForm').attr('action', '/buy-stock/' + stockId);
-    });
-  });
-
-
-
-</script>
-
-<!-- Sell Stock Modal -->
-<div class="modal fade" id="sellStockModal" tabindex="-1" role="dialog" aria-labelledby="sellStockModalLabel">
-  <div class="modal-dialog" role="document">
-    <div class="modal-content" style="background-color: var(--bg-color); color: var(--text-color);">
-      <div class="modal-header" style="background-color: var(--accent-color);">
-        <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="color: var(--text-color);">
-          <span aria-hidden="true">&times;</span>
-        </button>
-        <h4 class="modal-title" id="sellStockModalLabel">Sell Stock</h4>
-      </div>
-      <form method="post" id="sellStockForm">
-        <div class="modal-body">
-          <input type="hidden" id="sellStockId" name="stock_id">
-          <div class="form-group">
-            <label for="sell_shares" class="form-label">Number of Shares</label>
-            <input type="number" class="form-control" id="sell_shares" name="shares" required
-                   style="background-color: var(--bg-color); color: var(--text-color); border: 1px solid var(--accent-color);">
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-custom-secondary" data-dismiss="modal">Cancel</button>
-            <button type="submit" class="btn btn-custom-primary">Sell Stock</button>
-          </div>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-
-<script>
-  // Buy Stock Modal Setup
-  $('#buyStockModal').on('show.bs.modal', function(event) {
-    var button = $(event.relatedTarget);
-    var stockId = button.data('stock-id');
-    var stockName = button.data('stock-name');
-    var modal = $(this);
-    modal.find('.modal-title').text('Buy ' + stockName);
-    modal.find('#buyStockForm').attr('action', '/buy-stock/' + stockId + '/');
-  });
-
-  // Sell Stock Modal Setup
-  $('#sellStockModal').on('show.bs.modal', function(event) {
-    var button = $(event.relatedTarget);
-    var stockId = button.data('stock-id');
-    var stockName = button.data('stock-name');
-    var modal = $(this);
-
-    if (!stockId) {
-        console.error("Stock ID is missing!");
-        return;
+    // Function to format numbers with commas
+    function formatCurrency(amount) {
+      return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
     }
 
-    modal.find('.modal-title').text('Sell ' + stockName);
-    modal.find('#sellStockForm').attr('action', '/sell-stock/' + stockId);
-    modal.find('#sellStockId').val(stockId);
-});
+    // Buy Stock Modal
+    document.querySelectorAll('.buy-btn').forEach(button => {
+      button.addEventListener('click', function () {
+        selectedStockId = this.getAttribute('data-stock-id');
+        selectedStockName = this.getAttribute('data-stock-name');
+        selectedStockPrice = parseFloat(this.getAttribute('data-stock-price'));
 
-  // Update stock prices every 5 seconds
-  function updateStockPrices() {
-    fetch("{{ url_for('stocks') }}", { 
-        headers: { "X-Requested-With": "XMLHttpRequest" } 
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error("HTTP error! Status: " + response.status);
-        }
-        return response.json(); // Convert response to JSON
-    })
-    .then(data => {
-        console.log("Stock Data Received:", data); // Debugging output
-        data.forEach(stock => {
-            let priceElement = document.getElementById(`price-${stock.id}`);
-            if (priceElement) {
-                priceElement.innerText = `$${stock.price.toFixed(2)}`;
-            }
-        });
-    })
-    .catch(error => console.error("Error updating stock prices:", error));
-}
+        let modal = document.getElementById('buyStockModal');
+        modal.querySelector('.modal-title').textContent = `Buy ${selectedStockName}`;
+        document.getElementById('buyStockForm').setAttribute('action', `/buy-stock/${selectedStockId}`);
 
-// Call the function every 5 seconds to refresh prices
-setInterval(updateStockPrices, 5000);
+        document.getElementById('buy_shares').value = "";
+        document.getElementById('buyTotalCost').textContent = "";
+      });
+    });
 
+    document.getElementById('buy_shares').addEventListener('input', function () {
+      let shares = parseInt(this.value);
+      if (shares > 0) {
+        let total = shares * selectedStockPrice;
+        document.getElementById('buyTotalCost').textContent = `You are buying ${shares} shares of ${selectedStockName} for ${formatCurrency(total)}.`;
+      } else {
+        document.getElementById('buyTotalCost').textContent = "";
+      }
+    });
+
+    document.getElementById('buyConfirmBtn').addEventListener('click', function () {
+      let shares = document.getElementById('buy_shares').value;
+      let total = shares * selectedStockPrice;
+      document.getElementById('buyConfirmText').textContent = `Are you sure you want to buy ${shares} shares of ${selectedStockName} for ${formatCurrency(total)}?`;
+      $('#buyStockModal').modal('hide');
+      $('#buyConfirmModal').modal('show');
+    });
+
+    // ✅ Fix: Ensure the form submits when "Confirm Buy" is clicked
+    document.getElementById('buySubmitBtn').addEventListener('click', function () {
+      document.getElementById('buyStockForm').submit();
+    });
+
+    // Sell Stock Modal
+    document.querySelectorAll('.sell-btn').forEach(button => {
+      button.addEventListener('click', function () {
+        selectedStockId = this.getAttribute('data-stock-id');
+        selectedStockName = this.getAttribute('data-stock-name');
+        selectedStockPrice = parseFloat(this.getAttribute('data-stock-price'));
+
+        let modal = document.getElementById('sellStockModal');
+        modal.querySelector('.modal-title').textContent = `Sell ${selectedStockName}`;
+        document.getElementById('sellStockForm').setAttribute('action', `/sell-stock/${selectedStockId}`);
+
+        document.getElementById('sell_shares').value = "";
+        document.getElementById('sellTotalCost').textContent = "";
+      });
+    });
+
+    document.getElementById('sell_shares').addEventListener('input', function () {
+      let shares = parseInt(this.value);
+      if (shares > 0) {
+        let total = shares * selectedStockPrice;
+        document.getElementById('sellTotalCost').textContent = `You are selling ${shares} shares of ${selectedStockName} for ${formatCurrency(total)}.`;
+      } else {
+        document.getElementById('sellTotalCost').textContent = "";
+      }
+    });
+
+    document.getElementById('sellConfirmBtn').addEventListener('click', function () {
+      let shares = document.getElementById('sell_shares').value;
+      let total = shares * selectedStockPrice;
+      document.getElementById('sellConfirmText').textContent = `Are you sure you want to sell ${shares} shares of ${selectedStockName} for ${formatCurrency(total)}?`;
+      $('#sellStockModal').modal('hide');
+      $('#sellConfirmModal').modal('show');
+    });
+
+    // ✅ Fix: Ensure the form submits when "Confirm Sell" is clicked
+    document.getElementById('sellSubmitBtn').addEventListener('click', function () {
+      document.getElementById('sellStockForm').submit();
+    });
+  });
 </script>
 
 {% endblock %}

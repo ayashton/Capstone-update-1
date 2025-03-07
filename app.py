@@ -5,6 +5,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 import random
 from itsdangerous import URLSafeTimedSerializer
+from flask_migrate import Migrate
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your_secret_key'
@@ -15,12 +16,15 @@ db = SQLAlchemy(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 
+# Initialize Flask-Migrate
+migrate = Migrate(app, db)
+
 # Unauthorized handler: if not logged in, redirect to a custom unauthorized page
 @login_manager.unauthorized_handler
 def unauthorized_callback():
     return redirect(url_for('unauthorized'))
 
-# -------------------- Models --------------------
+# -------------------- Models -----------------------____
 class Users(UserMixin, db.Model):
     __tablename__ = 'user'
     id = db.Column(db.Integer, primary_key=True)
@@ -35,8 +39,26 @@ class Users(UserMixin, db.Model):
 class Stock(db.Model):
     __tablename__ = 'stocks'
     id = db.Column(db.Integer, primary_key=True)
+    symbol = db.Column(db.String(10), unique=True, nullable=False)
     name = db.Column(db.String(100), nullable=False)
-    initial_price = db.Column(db.Float, nullable=False)
+    price = db.Column(db.Float, nullable=False, default=1.00)
+    sector = db.Column(db.String(100), nullable=True)
+    price_change = db.Column(db.Float, nullable=False, default=0.00)  
+    percent_change = db.Column(db.Float, nullable=False, default=0.00)  
+
+
+
+    def update_price(self):
+        change_percentage = random.uniform(-5, 5)  # Change between -10% and +10%
+        change_amount = round(self.price * (change_percentage / 100), 2)
+        
+        self.price = round(self.price + change_amount, 2)
+        self.price_change = change_amount
+        self.percent_change = round(change_percentage, 2)
+
+        if self.price < 1:  # Prevent stock price from dropping to zero or negative
+            self.price = 1.00
+
 
 class Transaction(db.Model):
     __tablename__ = 'transactions'
@@ -70,7 +92,6 @@ def verify_reset_token(token, expiration=3600, salt='password-reset-salt'):
 
 @app.template_filter('currency')
 def currency_format(value):
-    """Formats a number as currency (e.g., $1,234.56)."""
     try:
         return "${:,.2f}".format(float(value))
     except (ValueError, TypeError):
@@ -191,7 +212,8 @@ def unauthorized():
 @admin_required
 def admin():
     users = Users.query.all()
-    return render_template("admin.html", users=users)
+    stocks = Stock.query.all()  # Ensure stocks are retrieved
+    return render_template("admin.html", users=users, stocks=stocks)
 
 @app.route('/delete-user/<int:user_id>', methods=["POST"])
 @login_required
@@ -215,60 +237,61 @@ def change_role(user_id):
         flash('User role updated successfully.', 'success')
     return redirect(url_for('admin'))
 
+# In app.py
+
 @app.route('/portfolio')
 @login_required
 def portfolio():
     user_transactions = Transaction.query.filter_by(user_id=current_user.id).all()
+    user = Users.query.get(current_user.id)
 
     holdings = {}
-    total_spent = 0.0  # Track how much the user has spent buying stocks
-    total_value = 0.0  # Track current stock value
+    total_shares = 0
+    total_value = 0.0
 
     for tx in user_transactions:
-        sid = tx.stock_id
-        if sid not in holdings:
-            holdings[sid] = {"shares": 0, "total_cost": 0.0}
+        stock = Stock.query.get(tx.stock_id)
+        if not stock:
+            continue  # Skip if stock doesn't exist
+
+        # Initialize the holding if not already present
+        if stock.id not in holdings:
+            holdings[stock.id] = {
+                "symbol": stock.symbol,
+                "shares": 0,
+                "total_cost": 0.0,
+                "sector": stock.sector if stock.sector else "N/A",
+                "price_change": float(stock.price_change) if stock.price_change is not None else 0.0,
+                "percent_change": float(stock.percent_change) if stock.percent_change is not None else 0.0,
+                "current_price": float(stock.price) if stock.price is not None else 0.0
+            }
+
         if tx.transaction_type == 'buy':
-            holdings[sid]["shares"] += tx.shares
-            holdings[sid]["total_cost"] += tx.shares * tx.price
-            total_spent += tx.shares * tx.price  # Track total spent on purchases
+            holdings[stock.id]["shares"] += tx.shares
+            holdings[stock.id]["total_cost"] += tx.shares * stock.price
+            total_shares += tx.shares
         elif tx.transaction_type == 'sell':
-            holdings[sid]["shares"] -= tx.shares
-            holdings[sid]["total_cost"] -= tx.shares * tx.price
+            holdings[stock.id]["shares"] -= tx.shares
+            holdings[stock.id]["total_cost"] -= tx.shares * stock.price
+            total_shares -= tx.shares
 
-    portfolio_holdings = []
-    for sid, data in holdings.items():
-        if data["shares"] > 0:
-            stock = Stock.query.get(sid)
-            current_price = round(random.uniform(stock.initial_price * 0.9, stock.initial_price * 1.1), 2)
-            avg_price = data["total_cost"] / data["shares"] if data["shares"] else 0
-            value = data["shares"] * current_price
-            total_value += value  # Track the updated stock value
+        # Remove holdings if shares drop to zero or below
+        if holdings.get(stock.id, {}).get("shares", 0) <= 0:
+            holdings.pop(stock.id, None)
 
-            portfolio_holdings.append({
-                "symbol": stock.name.upper()[:4],
-                "shares": data["shares"],
-                "avg_price": round(avg_price, 2),
-                "total_value": round(value, 2)
-            })
-
-    # Calculate profit/loss (current value - total spent)
-    profit_loss = total_value - total_spent
-
-    # Fetch latest balance
-    updated_balance = Users.query.get(current_user.id).balance
+    # Calculate total portfolio value
+    for data in holdings.values():
+        total_value += data["shares"] * data["current_price"]
 
     portfolio_data = {
         "total_value": round(total_value, 2),
-        "cash": round(updated_balance, 2),
-        "num_stocks": len(portfolio_holdings),
-        "holdings": portfolio_holdings,
-        "profit_loss": round(profit_loss, 2)  # Add profit/loss data
+        "num_stocks": len(holdings),
+        "total_shares": total_shares,
+        "balance": round(user.balance, 2) if user.balance is not None else 0.0,
+        "holdings": holdings
     }
 
-    return render_template('portfolio.html', title='Portfolio', portfolio_data=portfolio_data)
-
-
+    return render_template('portfolio.html', portfolio_data=portfolio_data)
 
 @app.route('/profile', methods=['GET', 'POST'])
 @login_required
@@ -286,35 +309,43 @@ def profile():
 @app.route('/transactions')
 @login_required
 def transactions():
-    txs = Transaction.query.filter_by(user_id=current_user.id).order_by(Transaction.transaction_date.desc()).all()
-    transactions_list = []
-    for tx in txs:
+    user_transactions = Transaction.query.filter_by(user_id=current_user.id).order_by(Transaction.transaction_date.desc()).all()
+    
+    transactions_list = []  # ✅ Ensure transactions_list is defined before usage
+
+    for tx in user_transactions:
         stock = Stock.query.get(tx.stock_id)
-        transactions_list.append({
-            "symbol": stock.name.upper()[:4],
-            "transaction_type": tx.transaction_type,
-            "shares": tx.shares,
-            "price": tx.price,
-            "transaction_date": tx.transaction_date
-        })
-    # Recalculate total account value from holdings.
-    user_transactions = Transaction.query.filter_by(user_id=current_user.id).all()
+        if stock:
+            transactions_list.append({
+                "symbol": stock.symbol,
+                "transaction_type": tx.transaction_type,
+                "shares": tx.shares,
+                "price": tx.price,
+                "transaction_date": tx.transaction_date
+            })
+
+    # ✅ Ensure total_value is calculated correctly
     holdings = {}
+    total_value = 0.0
+
     for tx in user_transactions:
         sid = tx.stock_id
         if sid not in holdings:
             holdings[sid] = {"shares": 0, "total_cost": 0.0}
+
         if tx.transaction_type == 'buy':
             holdings[sid]["shares"] += tx.shares
             holdings[sid]["total_cost"] += tx.shares * tx.price
         elif tx.transaction_type == 'sell':
             holdings[sid]["shares"] -= tx.shares
             holdings[sid]["total_cost"] -= tx.shares * tx.price
-    total_value = 0.0
+
     for sid, data in holdings.items():
         if data["shares"] > 0:
-            avg_price = data["total_cost"] / data["shares"]
-            total_value += data["shares"] * avg_price
+            stock = Stock.query.get(sid)  # ✅ Ensure stock is fetched correctly
+            if stock:
+                total_value += data["shares"] * stock.price  # ✅ Use stock.price instead of undefined variable
+
     return render_template('transactions.html', title='Transactions', transactions=transactions_list, total_value=round(total_value, 2))
 
 @app.route('/add-funds', methods=['POST'])
@@ -336,36 +367,56 @@ def add_funds():
     flash(f"Successfully added ${amount:,.2f} to your account.", "success")
     return redirect(url_for('portfolio'))
 
-
-from flask import jsonify, request
+import random
+from flask import render_template
 
 @app.route('/stocks')
 @login_required
 def stocks():
     stocks_query = Stock.query.all()
-    stocks_list = []
-
     for stock in stocks_query:
-        price = round(random.uniform(stock.initial_price * 0.9, stock.initial_price * 1.1), 2)
-        stocks_list.append({
+        # Ensure the current price is valid; default to $1.00 if missing or <= 0
+        try:
+            current_price = float(stock.price)
+        except (TypeError, ValueError):
+            current_price = 1.00
+        if current_price <= 0:
+            current_price = 1.00
+
+        # Simulate a fluctuation between -10% and +10%
+        change_percentage = random.uniform(-10, 10)
+        change_amount = round(current_price * (change_percentage / 100), 2)
+        new_price = round(current_price + change_amount, 2)
+        if new_price < 1:
+            new_price = 1.00
+
+        # Update the stock object
+        stock.price = new_price
+        stock.price_change = change_amount
+        stock.percent_change = round(change_percentage, 2)
+
+    # Commit these simulated updates so that the updated price is stored in the DB.
+    db.session.commit()
+
+    stocks_list = [
+        {
             "id": stock.id,
-            "symbol": stock.name.upper()[:4],  # Assuming name is the stock symbol
+            "symbol": stock.symbol,
             "name": stock.name,
-            "price": price
-        })
-
-    # If it's an AJAX request, return JSON instead of an HTML page
-    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-        return jsonify(stocks_list)
-
-    return render_template('stocks.html', title='Stocks', stocks=stocks_list)
-
+            "price": stock.price,  # a float value, e.g., 123.45
+            "price_change": stock.price_change if stock.price_change is not None else 0.00,
+            "percent_change": stock.percent_change if stock.percent_change is not None else 0.00,
+            "sector": stock.sector if stock.sector else "N/A"
+        }
+        for stock in stocks_query
+    ]
+    return render_template('stocks.html', stocks=stocks_list)
 
 @app.route('/buy-stock/<int:stock_id>', methods=['POST'])
 @login_required
 def buy_stock(stock_id):
     stock = Stock.query.get_or_404(stock_id)
-    
+
     try:
         shares = int(request.form.get("shares"))
     except (ValueError, TypeError):
@@ -376,8 +427,8 @@ def buy_stock(stock_id):
         flash("You must buy at least one share.", "danger")
         return redirect(url_for("stocks"))
 
-    # Calculate total cost
-    price = round(random.uniform(stock.initial_price * 0.9, stock.initial_price * 1.1), 2)
+    # ✅ Fix: Remove initial_price and use stock.price
+    price = round(random.uniform(stock.price * 0.9, stock.price * 1.1), 2)
     total_cost = round(price * shares, 2)
 
     user = Users.query.get(current_user.id)
@@ -388,7 +439,6 @@ def buy_stock(stock_id):
 
     user.balance -= total_cost
 
- 
     new_transaction = Transaction(
         user_id=user.id,
         stock_id=stock.id,
@@ -403,7 +453,7 @@ def buy_stock(stock_id):
     flash(f"Bought {shares} shares of {stock.name} at ${price:.2f} per share!", "success")
     return redirect(url_for("transactions"))
 
-@app.route('/sell-stock/<int:stock_id>', methods=['POST'])
+@app.route('/sell-stock/<int:stock_id>', methods=['GET', 'POST'])
 @login_required
 def sell_stock(stock_id):
     stock = Stock.query.get_or_404(stock_id)
@@ -435,17 +485,97 @@ def sell_stock(stock_id):
     return redirect(url_for('transactions'))
 
 
-@app.route('/create-stock', methods=["POST"])
+@app.route('/create-stock', methods=['POST'])
 @login_required
 @admin_required
 def create_stock():
-    stock_name = request.form.get('stock_name')
-    initial_price = request.form.get('initial_price')
-    new_stock = Stock(name=stock_name, initial_price=initial_price)
+    symbol = request.form.get('symbol').upper()
+    stock_name = request.form.get('name')
+    price = float(request.form.get('price'))
+    sector = request.form.get('sector')  # Allow selecting a sector
+
+    # Ensure stock symbol is unique
+    existing_stock = Stock.query.filter_by(symbol=symbol).first()
+    if existing_stock:
+        flash('Stock symbol already exists!', 'danger')
+        return redirect(url_for('admin'))
+
+    new_stock = Stock(
+        symbol=symbol,
+        name=stock_name,
+        price=price,
+        sector=sector
+    )
+
     db.session.add(new_stock)
     db.session.commit()
     flash('Stock created successfully!', 'success')
     return redirect(url_for('admin'))
+
+
+@app.route('/delete-stock/<int:stock_id>', methods=['POST'])
+@login_required
+@admin_required
+def delete_stock(stock_id):
+    stock = Stock.query.get_or_404(stock_id)
+
+    # Prevent deletion if transactions exist for this stock
+    transaction_exists = Transaction.query.filter_by(stock_id=stock.id).first()
+    if transaction_exists:
+        flash('Cannot delete stock with existing transactions.', 'danger')
+        return redirect(url_for('admin'))
+
+    db.session.delete(stock)
+    db.session.commit()
+    flash(f'Stock {stock.symbol} deleted successfully!', 'success')
+    return redirect(url_for('admin'))
+
+@app.route('/edit-stock/<int:stock_id>', methods=['POST'])
+@login_required
+@admin_required
+def edit_stock(stock_id):
+    stock = Stock.query.get_or_404(stock_id)
+
+    stock.name = request.form['name']
+    stock.price = float(request.form['price'])
+    stock.sector = request.form['sector']
+
+    db.session.commit()
+    flash(f'Stock {stock.symbol} updated successfully!', 'success')
+    return redirect(url_for('admin'))
+
+@app.route('/deposit_funds', methods=['POST'])
+@login_required
+def deposit_funds():
+    try:
+        amount = float(request.form.get('deposit_amount'))
+        if amount <= 0:
+            flash('Deposit amount must be greater than zero.', 'danger')
+        else:
+            current_user.balance += amount
+            db.session.commit()
+            flash(f'Successfully deposited ${amount:,.2f}!', 'success')
+    except ValueError:
+        flash('Invalid input. Please enter a valid number.', 'danger')
+    return redirect(url_for('portfolio'))
+
+
+@app.route('/withdraw_funds', methods=['POST'])
+@login_required
+def withdraw_funds():
+    try:
+        amount = float(request.form.get('withdraw_amount'))
+        if amount <= 0:
+            flash('Withdrawal amount must be greater than zero.', 'danger')
+        elif amount > current_user.balance:
+            flash(f'Insufficient funds. Your balance is ${current_user.balance:,.2f}.', 'danger')
+        else:
+            current_user.balance -= amount
+            db.session.commit()
+            flash(f'Successfully withdrew ${amount:,.2f}!', 'success')
+    except ValueError:
+        flash('Invalid input. Please enter a valid number.', 'danger')
+    return redirect(url_for('portfolio'))
 
 if __name__ == '__main__':
     app.run(debug=True)

@@ -56,14 +56,195 @@ a:hover {
   color: var(--accent-color);
 }
 
-/* Balance */
-.profit {
+.container:empty {
+  display: none;
+}
+
+/* Stock Table Styles */
+.table th, .table td {
+  padding: 12px;
+  text-align: left;
+}
+
+/* Price Change - Color-Coding */
+.price-up {
   color: green;
-  font-size: 1.6rem;
+  font-weight: bold;
 }
-
-.loss {
+.price-down {
   color: red;
-  font-size: 1.6rem;
+  font-weight: bold;
 }
 
+/* Custom Table Styling */
+.stock-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.stock-table th {
+  background-color: var(--accent-color);
+  color: var(--text-color);
+  padding: 12px;
+  font-size: 1.2rem;
+}
+.stock-table td {
+  padding: 12px;
+  border-bottom: 1px solid var(--accent-color);
+}
+
+/* Buttons */
+.btn-buy {
+  background-color: green;
+  color: white;
+  padding: 8px 15px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: opacity var(--transition-speed);
+}
+.btn-buy:hover {
+  opacity: 0.8;
+}
+
+.btn-sell {
+  background-color: red;
+  color: white;
+  padding: 8px 15px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: opacity var(--transition-speed);
+}
+.btn-sell:hover {
+  opacity: 0.8;
+}
+
+.funds-section {
+  background-color: var(--accent-color);
+  padding: 20px;
+  border-radius: 8px;
+}
+
+.funds-input {
+  background-color: #333;
+  color: var(--text-color);
+  border: 1px solid var(--text-color);
+  padding: 10px;
+  border-radius: 5px;
+}
+
+.funds-input::placeholder {
+  color: #bbb;
+}
+
+.btn-custom-primary {
+  background-color: #28a745;
+  color: white;
+  border: none;
+  padding: 10px;
+  font-size: 1.2rem;
+  border-radius: 5px;
+}
+
+.btn-custom-danger {
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  padding: 10px;
+  font-size: 1.2rem;
+  border-radius: 5px;
+}
+
+.btn-custom-primary:hover, .btn-custom-danger:hover {
+  opacity: 0.8;
+}
+
+.price-up {
+  color: green;
+  font-weight: bold;
+}
+
+.price-down {
+  color: red;
+  font-weight: bold;
+}
+
+.admin-section {
+  background-color: var(--accent-color);
+  padding: 20px;
+  border-radius: 8px;
+  margin-top: 30px;
+}
+
+.role-dropdown {
+  background-color: #333;
+  color: var(--text-color);
+  border: 1px solid var(--text-color);
+  padding: 5px;
+  border-radius: 5px;
+}
+
+.role-dropdown option {
+  background-color: var(--bg-color);
+  color: var(--text-color);
+}
+
+.btn-custom-danger {
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  padding: 8px;
+  font-size: 1rem;
+  border-radius: 5px;
+}
+
+.btn-custom-danger:hover {
+  opacity: 0.8;
+}
+
+.modal-content {
+  background-color: black !important;
+  color: tan !important;
+  border: 1px solid var(--text-color);
+}
+
+.modal-header {
+  background-color: var(--accent-color) !important;
+  border-bottom: 1px solid var(--text-color);
+}
+
+.modal-body label {
+  color: tan !important;
+}
+
+.modal-footer {
+  background-color: black !important;
+  border-top: 1px solid var(--text-color);
+}
+
+.custom-input {
+  background-color: #222 !important;
+  color: tan !important;
+  border: 1px solid var(--text-color) !important;
+  padding: 10px;
+  border-radius: 5px;
+}
+
+.custom-input::placeholder {
+  color: #aaa !important;
+}
+
+.btn-custom-secondary {
+  background-color: black !important;
+  color: tan !important;
+  border: 1px solid tan !important;
+  padding: 10px;
+  font-size: 1rem;
+  border-radius: 5px;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+.btn-custom-secondary:hover {
+  background-color: tan !important;
+  color: black !important;
+}
