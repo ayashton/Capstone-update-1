@@ -6,7 +6,8 @@
   --font-stack: 'Roboto', sans-serif;
 }
 
-/* Global & Typography */
+/* Global Typography */
+
 * {
   box-sizing: border-box;
   margin: 0;
